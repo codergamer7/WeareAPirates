@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+/* class-based dark mode (we toggle .dark on <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- Palette ---------- */
+/* Light = warm treasure-map parchment. Dark = oceanic abyss + molten gold. */
+:root {
+  --background: #f3ecdd;
+  --surface: #fbf6ea;
+  --surface-2: #ece1c9;
+  --foreground: #211b12;
+  --muted: #6f6552;
+  --border: rgba(33, 27, 18, 0.12);
+  --accent: #b3791a;
+  --accent-bright: #d39523;
+  --accent-foreground: #1a1206;
+  --glow: rgba(179, 121, 26, 0.25);
+  --shadow-color: 33, 27, 18;
+}
+
+.dark {
+  --background: #06080f;
+  --surface: #0c111d;
+  --surface-2: #141b2c;
+  --foreground: #f4efe3;
+  --muted: #8a93a8;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #f0b429;
+  --accent-bright: #ffca52;
+  --accent-foreground: #160f02;
+  --glow: rgba(240, 180, 41, 0.32);
+  --shadow-color: 0, 0, 0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  --radius-xl: 1.1rem;
+  --radius-2xl: 1.5rem;
+
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pulse-glow: pulseGlow 3.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -700px 0; }
+  100% { background-position: 700px 0; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* ---------- Base ---------- */
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+/* Atmospheric backdrop — a soft gradient mesh + grain that sits behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(60rem 60rem at 12% -8%, var(--glow), transparent 60%),
+    radial-gradient(50rem 50rem at 95% 0%, rgba(45, 212, 191, 0.1), transparent 55%),
+    radial-gradient(70rem 60rem at 50% 120%, rgba(240, 180, 41, 0.08), transparent 60%);
+  pointer-events: none;
+  transform: translateZ(0);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-2) transparent;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--surface-2);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent); background-clip: content-box; }
+
+/* ---------- Reusable bits ---------- */
+@utility glass {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid var(--border);
+}
+
+@utility text-gradient-gold {
+  background: linear-gradient(110deg, var(--accent-bright), var(--accent) 55%, #8a5a12);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface) 0%,
+    var(--surface-2) 40%,
+    var(--surface) 80%
+  );
+  background-size: 700px 100%;
+  animation: var(--animate-shimmer);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Hide native scrollbar on horizontal carousels but keep them scrollable */
+.row-scroll {
+  scrollbar-width: none;
+}
+.row-scroll::-webkit-scrollbar { display: none; }
