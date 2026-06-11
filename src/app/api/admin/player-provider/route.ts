@@ -8,6 +8,7 @@ import {
 } from "@/lib/player-provider";
 
 const SETTINGS_KEY = "player_provider";
+const REQUIRES_DURABLE_SETTINGS = process.env.VERCEL === "1";
 
 async function requireAdmin() {
   const user = await getServerUser();
@@ -33,6 +34,15 @@ export async function GET() {
     .select("value")
     .eq("key", SETTINGS_KEY)
     .maybeSingle();
+  if (error && REQUIRES_DURABLE_SETTINGS) {
+    return NextResponse.json(
+      {
+        error:
+          "Player provider storage is not set up. Run the app_settings table SQL in your production Supabase project.",
+      },
+      { status: 500 },
+    );
+  }
   if (!error && isPlayerProvider(data?.value)) provider = data.value;
 
   return NextResponse.json({ provider });
@@ -55,6 +65,17 @@ export async function POST(req: NextRequest) {
   });
 
   if (error) {
+    if (REQUIRES_DURABLE_SETTINGS) {
+      return NextResponse.json(
+        {
+          error:
+            "Player provider was not saved. Run the app_settings table SQL in your production Supabase project.",
+          detail: error.message,
+        },
+        { status: 500 },
+      );
+    }
+
     await writeLocalPlayerProvider(provider);
     return NextResponse.json({
       provider,

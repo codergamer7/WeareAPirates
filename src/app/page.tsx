@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { TmdbItem, WatchProgress } from "@/lib/types";
+import type { Reminder, TmdbItem, WatchProgress } from "@/lib/types";
 import {
   getByGenre,
+  getNewReleases,
   getPopular,
   getRecommendations,
   getTopRated,
@@ -12,10 +13,12 @@ import {
 import { HOME_GENRES } from "@/lib/config";
 import { useAuth } from "@/lib/auth-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getWatchHistory } from "@/lib/lists";
+import { getReminders, getWatchHistory } from "@/lib/lists";
 import { buildRecommendations } from "@/lib/recommend";
 import { Hero } from "@/components/home/Hero";
 import { MediaRow } from "@/components/media/MediaRow";
+import { Top10Row } from "@/components/home/Top10Row";
+import { RemindersRow } from "@/components/home/RemindersRow";
 import { ContinueWatchingRow } from "@/components/home/ContinueWatchingRow";
 import { RowSkeleton, Skeleton } from "@/components/ui/Skeleton";
 
@@ -28,7 +31,10 @@ export default function HomePage() {
   const { user } = useAuth();
   const [hero, setHero] = useState<TmdbItem[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
+  const [top10, setTop10] = useState<TmdbItem[]>([]);
+  const [newReleases, setNewReleases] = useState<TmdbItem[]>([]);
   const [continueW, setContinueW] = useState<WatchProgress[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [recRow, setRecRow] = useState<Row | null>(null);
   const [forYou, setForYou] = useState<TmdbItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,9 +51,11 @@ export default function HomePage() {
           getTopRated("tv"),
         ]);
         if (!active) return;
-        setHero(trending.results.filter((r) => r.media_type !== "person"));
+        const trendingItems = trending.results.filter((r) => r.media_type !== "person");
+        setHero(trendingItems);
+        setTop10(trendingItems);
         const base: Row[] = [
-          { title: "Trending This Week", items: trending.results.filter((r) => r.media_type !== "person") },
+          { title: "Trending This Week", items: trendingItems },
           { title: "Popular Films", items: popMovies.results },
           { title: "Popular Series", items: popTv.results },
           { title: "Top Rated Films", items: topMovies.results },
@@ -55,6 +63,11 @@ export default function HomePage() {
         ];
         setRows(base);
         setLoading(false);
+
+        // new this week (lazy)
+        getNewReleases().then((items) => {
+          if (active) setNewReleases(items);
+        });
 
         // genre rows (lazy, appended)
         const genreRows = await Promise.all(
@@ -80,6 +93,10 @@ export default function HomePage() {
     if (!sb) return;
     let active = true;
     (async () => {
+      getReminders(sb, user.id).then((rs) => {
+        if (active) setReminders(rs);
+      });
+
       const history = await getWatchHistory(sb, user.id);
       if (!active) return;
       setContinueW(
@@ -126,10 +143,18 @@ export default function HomePage() {
         {user && continueW.length > 0 && (
           <ContinueWatchingRow items={continueW} onChange={setContinueW} />
         )}
+        {user && reminders.length > 0 && (
+          <RemindersRow items={reminders} onChange={setReminders} />
+        )}
         {forYou.length > 0 && (
           <MediaRow title="Recommended For You" items={forYou} />
         )}
         {recRow && <MediaRow title={recRow.title} items={recRow.items} />}
+
+        {top10.length > 0 && <Top10Row title="Top 10 This Week" items={top10} />}
+        {newReleases.length > 0 && (
+          <MediaRow title="New This Week" items={newReleases} />
+        )}
 
         {loading ? (
           <div className="space-y-8 pt-8">

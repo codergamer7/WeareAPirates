@@ -7,6 +7,7 @@ import {
 } from "@/lib/player-provider";
 
 const SETTINGS_KEY = "player_provider";
+const REQUIRES_DURABLE_SETTINGS = process.env.VERCEL === "1";
 
 export async function GET() {
   let provider: PlayerProvider = await readLocalPlayerProvider();
@@ -18,6 +19,16 @@ export async function GET() {
       .select("value")
       .eq("key", SETTINGS_KEY)
       .maybeSingle();
+    if (error && REQUIRES_DURABLE_SETTINGS) {
+      return NextResponse.json(
+        {
+          provider,
+          warning:
+            "Player provider storage is not set up. Using the default provider.",
+        },
+        { status: 503 },
+      );
+    }
     if (!error && isPlayerProvider(data?.value)) provider = data.value;
   }
 

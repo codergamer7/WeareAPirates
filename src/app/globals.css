@@ -67,6 +67,14 @@
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
+@keyframes auroraDrift {
+  0%, 100% { transform: translate3d(-4%, -2%, 0) scale(1.15) rotate(0deg); }
+  50% { transform: translate3d(4%, 3%, 0) scale(1.3) rotate(6deg); }
+}
+@keyframes floatUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* ---------- Base ---------- */
 * {
@@ -82,7 +90,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Atmospheric backdrop — a soft gradient mesh + grain that sits behind everything */
+/* Atmospheric backdrop — a soft gradient mesh that sits behind everything */
 body::before {
   content: "";
   position: fixed;
@@ -94,6 +102,23 @@ body::before {
     radial-gradient(70rem 60rem at 50% 120%, rgba(240, 180, 41, 0.08), transparent 60%);
   pointer-events: none;
   transform: translateZ(0);
+}
+
+/* Slow-drifting aurora — its own compositor layer, transform-only animation so
+   it never repaints on scroll. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38rem 30rem at 22% 18%, var(--glow), transparent 62%),
+    radial-gradient(34rem 28rem at 82% 28%, rgba(45, 212, 191, 0.12), transparent 60%);
+  filter: blur(60px);
+  opacity: 0.5;
+  animation: auroraDrift 28s ease-in-out infinite;
+  will-change: transform;
 }
 
 ::selection {
@@ -152,3 +177,36 @@ body::before {
   scrollbar-width: none;
 }
 .row-scroll::-webkit-scrollbar { display: none; }
+
+/* A light sheen that sweeps across a card on hover (transform-only). */
+@utility card-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    color-mix(in srgb, var(--foreground) 16%, transparent) 48%,
+    transparent 66%
+  );
+  transform: translateX(-130%);
+  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Press feedback for interactive surfaces. */
+.press {
+  transition: transform 0.12s ease;
+}
+.press:active {
+  transform: scale(0.96);
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  body::after { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
