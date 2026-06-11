@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
+  Bell,
+  BellRing,
   Bookmark,
   Calendar,
   Check,
   Clock,
+  Eye,
   Heart,
   Play,
   Plus,
   Star,
-  X,
 } from "lucide-react";
 import type { ListType } from "@/lib/types";
 import { img, type MediaType } from "@/lib/config";
@@ -20,10 +22,19 @@ import { getDetail } from "@/lib/tmdb";
 import { cn, prettyDate, runtime as fmtRuntime, yearOf } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getListStatus, toggleList } from "@/lib/lists";
+import {
+  getListStatus,
+  isRemindered,
+  isWatched,
+  markWatched,
+  toggleList,
+  toggleReminder,
+  unmarkWatched,
+} from "@/lib/lists";
 import { CastRow } from "@/components/media/CastRow";
 import { SeasonSelector } from "@/components/media/SeasonSelector";
 import { MediaRow } from "@/components/media/MediaRow";
+import { TrailerModal } from "@/components/media/TrailerModal";
 import { Splash } from "@/components/auth/StatusOverlays";
 
 function certOf(kind: MediaType, d: any): string | null {
@@ -48,6 +59,8 @@ export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
     saved: false,
     favorite: false,
   });
+  const [watched, setWatched] = useState(false);
+  const [remindered, setRemindered] = useState(false);
   const [trailer, setTrailer] = useState<string | null>(null);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [err, setErr] = useState(false);
@@ -87,6 +100,8 @@ export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
     const sb = createSupabaseBrowserClient();
     if (!sb) return;
     getListStatus(sb, user.id, kind, Number(id)).then(setStatus);
+    isWatched(sb, user.id, kind, Number(id)).then(setWatched);
+    isRemindered(sb, user.id, kind, Number(id)).then(setRemindered);
   }, [user, d, kind, id]);
 
   if (err)
@@ -117,6 +132,20 @@ export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
   const playHref =
     kind === "movie" ? `/watch/movie/${id}` : `/watch/tv/${id}/${firstSeason}/1`;
 
+  // Upcoming hook for "Remind me": a future movie release or the next TV episode.
+  const today = new Date().toISOString().slice(0, 10);
+  let upcoming: { air_date: string; label: string } | null = null;
+  if (kind === "movie") {
+    if (date && date > today) upcoming = { air_date: date, label: "Premiere" };
+  } else {
+    const ne = d.next_episode_to_air;
+    if (ne?.air_date)
+      upcoming = {
+        air_date: ne.air_date,
+        label: `S${ne.season_number} · E${ne.episode_number}`,
+      };
+  }
+
   async function toggle(listType: ListType) {
     if (!user) return;
     const sb = createSupabaseBrowserClient();
@@ -128,6 +157,41 @@ export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
       listType,
     );
     setStatus((s) => ({ ...s, [listType]: now }));
+  }
+
+  async function toggleWatched() {
+    if (!user) return;
+    const sb = createSupabaseBrowserClient();
+    if (!sb) return;
+    if (watched) {
+      await unmarkWatched(sb, user.id, kind, Number(id));
+      setWatched(false);
+    } else {
+      await markWatched(sb, user.id, {
+        media_type: kind,
+        tmdb_id: Number(id),
+        title,
+        poster_path: d.poster_path,
+        backdrop_path: d.backdrop_path,
+      });
+      setWatched(true);
+    }
+  }
+
+  async function toggleRemind() {
+    if (!user) return;
+    const sb = createSupabaseBrowserClient();
+    if (!sb) return;
+    const now = await toggleReminder(sb, user.id, {
+      media_type: kind,
+      tmdb_id: Number(id),
+      title,
+      poster_path: d.poster_path,
+      backdrop_path: d.backdrop_path,
+      air_date: upcoming?.air_date ?? null,
+      label: upcoming?.label ?? null,
+    });
+    setRemindered(now);
   }
 
   return (
@@ -238,9 +302,9 @@ export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <Link
                   href={playHref}
-                  className="group inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3.5 text-sm font-bold text-accent-foreground shadow-[0_8px_28px_var(--glow)] transition-transform hover:scale-[1.04]"
+                  className="group inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3.5 text-sm font-bold text-accent-foreground shadow-[0_8px_28px_var(--glow)] transition-transform hover:scale-[1.04] active:scale-95"
                 >
-                  <Play className="h-5 w-5" fill="currentColor" /> Play
+                  <Play className="h-5 w-5 transition-transform group-hover:scale-110" fill="currentColor" /> Play
                 </Link>
                 {trailer && (
                   <button
@@ -271,6 +335,22 @@ export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
                   idleIcon={<Heart className="h-5 w-5" />}
                   label="Favorite"
                 />
+                <ActionPill
+                  active={watched}
+                  onClick={toggleWatched}
+                  activeIcon={<Eye className="h-5 w-5" fill="currentColor" />}
+                  idleIcon={<Eye className="h-5 w-5" />}
+                  label={watched ? "Watched" : "Mark watched"}
+                />
+                {(upcoming || remindered) && (
+                  <ActionPill
+                    active={remindered}
+                    onClick={toggleRemind}
+                    activeIcon={<BellRing className="h-5 w-5" fill="currentColor" />}
+                    idleIcon={<Bell className="h-5 w-5" />}
+                    label={remindered ? "Reminding" : "Remind me"}
+                  />
+                )}
               </div>
             </motion.div>
           </div>
@@ -297,39 +377,11 @@ export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
       )}
 
       {/* ---- Trailer modal ---- */}
-      <AnimatePresence>
-        {trailerOpen && trailer && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setTrailerOpen(false)}
-            className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4 backdrop-blur-md"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative aspect-video w-full max-w-4xl overflow-hidden rounded-2xl border border-border shadow-2xl"
-            >
-              <button
-                onClick={() => setTrailerOpen(false)}
-                className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-black/60 text-white hover:bg-accent hover:text-accent-foreground"
-              >
-                <X className="h-5 w-5" />
-              </button>
-              <iframe
-                src={`https://www.youtube.com/embed/${trailer}?autoplay=1`}
-                title="Trailer"
-                allow="autoplay; encrypted-media; fullscreen"
-                allowFullScreen
-                className="h-full w-full"
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <TrailerModal
+        youtubeKey={trailerOpen ? trailer : null}
+        title={title}
+        onClose={() => setTrailerOpen(false)}
+      />
     </div>
   );
 }
@@ -352,7 +404,7 @@ function ActionPill({
       onClick={onClick}
       title={label}
       className={cn(
-        "group inline-flex items-center gap-2 rounded-full border px-4 py-3.5 text-sm font-semibold transition-all",
+        "group inline-flex items-center gap-2 rounded-full border px-4 py-3.5 text-sm font-semibold transition-all active:scale-95",
         active
           ? "border-accent bg-accent/15 text-accent"
           : "border-border text-muted hover:border-accent/50 hover:text-foreground",

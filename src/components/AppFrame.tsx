@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Navbar } from "@/components/nav/Navbar";
+import { MobileNav } from "@/components/nav/MobileNav";
+import { PageTransition } from "@/components/ui/PageTransition";
 import {
   PendingApproval,
   SetupNotice,
@@ -50,12 +52,16 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     return <SuspensionBanner note={profile.suspension_note} />;
   if (profile.status === "pending") return <PendingApproval />;
 
-  // Active — immersive (no chrome) on the watch player
-  const immersive = pathname.startsWith("/watch");
+  // Active — immersive (no chrome) on the watch player and inside a party room
+  const immersive =
+    pathname.startsWith("/watch") || pathname.startsWith("/party/");
   return (
     <>
       {!immersive && <Navbar />}
-      <main className={immersive ? "" : "min-h-screen"}>{children}</main>
+      <main className={immersive ? "" : "min-h-screen pb-16 md:pb-0"}>
+        {immersive ? children : <PageTransition>{children}</PageTransition>}
+      </main>
+      {!immersive && <MobileNav />}
     </>
   );
 }

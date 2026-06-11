@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Ban,
+  BarChart3,
   Check,
   Search,
   Shield,
@@ -14,6 +15,7 @@ import {
   Video,
   X,
 } from "lucide-react";
+import { AnalyticsPanel } from "@/components/admin/AnalyticsPanel";
 import type { Profile, ProfileStatus } from "@/lib/types";
 import {
   DEFAULT_PLAYER_PROVIDER,
@@ -22,6 +24,7 @@ import {
   type PlayerProvider,
 } from "@/lib/player-provider";
 import { useAuth } from "@/lib/auth-context";
+import { useCountUp } from "@/lib/use-count-up";
 import { prettyDate, cn } from "@/lib/utils";
 
 type Action = "approve" | "suspend" | "reactivate" | "promote" | "demote" | "delete";
@@ -35,8 +38,10 @@ export default function AdminPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [suspendTarget, setSuspendTarget] = useState<Profile | null>(null);
+  const [view, setView] = useState<"crew" | "analytics">("crew");
   const [playerProvider, setPlayerProvider] = useState<PlayerProvider>(DEFAULT_PLAYER_PROVIDER);
   const [providerSaving, setProviderSaving] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
   const [note, setNote] = useState("");
 
   const load = useCallback(async () => {
@@ -49,6 +54,7 @@ export default function AdminPage() {
       const data = await res.json();
       const providerData = await providerRes.json().catch(() => ({}));
       setUsers(data.users ?? []);
+      setProviderError(providerRes.ok ? null : providerData.error ?? "Player provider settings are unavailable.");
       if (PLAYER_PROVIDERS.includes(providerData.provider)) {
         setPlayerProvider(providerData.provider);
       }
@@ -78,8 +84,10 @@ export default function AdminPage() {
   }
 
   async function savePlayerProvider(provider: PlayerProvider) {
+    const previous = playerProvider;
     setPlayerProvider(provider);
     setProviderSaving(true);
+    setProviderError(null);
     try {
       const res = await fetch("/api/admin/player-provider", {
         method: "POST",
@@ -87,7 +95,18 @@ export default function AdminPage() {
         body: JSON.stringify({ provider }),
       });
       const data = await res.json().catch(() => ({}));
-      if (PLAYER_PROVIDERS.includes(data.provider)) setPlayerProvider(data.provider);
+      if (!res.ok) {
+        setPlayerProvider(previous);
+        setProviderError(data.error ?? "Player provider was not saved.");
+        return;
+      }
+      if (PLAYER_PROVIDERS.includes(data.provider)) {
+        setPlayerProvider(data.provider);
+        setProviderError(data.warning ?? null);
+      }
+    } catch {
+      setPlayerProvider(previous);
+      setProviderError("Player provider was not saved. Check your connection and try again.");
     } finally {
       setProviderSaving(false);
     }
@@ -145,6 +164,36 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* view switcher */}
+        <div className="mt-6 flex gap-1.5">
+          {(["crew", "analytics"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={cn(
+                "relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold capitalize transition-colors",
+                view === v ? "text-accent-foreground" : "text-muted hover:text-foreground",
+              )}
+            >
+              {view === v && (
+                <motion.span
+                  layoutId="admin-view"
+                  className="absolute inset-0 -z-10 rounded-full bg-accent"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              {v === "crew" ? <Users className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}
+              {v === "crew" ? "Crew" : "Analytics"}
+            </button>
+          ))}
+        </div>
+
+        {view === "analytics" ? (
+          <div className="mt-6">
+            <AnalyticsPanel />
+          </div>
+        ) : (
+          <>
         {/* stats */}
         <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Total crew" value={stats.total} icon={<Users className="h-5 w-5" />} tone="default" />
@@ -188,29 +237,34 @@ export default function AdminPage() {
             </div>
             <div className="flex items-center gap-2 rounded-xl border border-border bg-surface/50 px-2.5 py-2">
               <Video className="h-4 w-4 text-accent" />
-              <div className="flex gap-1">
-                {PLAYER_PROVIDERS.map((provider) => (
-                  <button
-                    key={provider}
-                    onClick={() => savePlayerProvider(provider)}
-                    disabled={providerSaving}
-                    className={cn(
-                      "relative rounded-full px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60",
-                      playerProvider === provider
-                        ? "text-accent-foreground"
-                        : "text-muted hover:text-foreground",
-                    )}
-                  >
-                    {playerProvider === provider && (
-                      <motion.span
-                        layoutId="player-provider"
-                        className="absolute inset-0 -z-10 rounded-full bg-accent"
-                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                      />
-                    )}
-                    {PLAYER_PROVIDER_LABELS[provider]}
-                  </button>
-                ))}
+              <div>
+                <div className="flex gap-1">
+                  {PLAYER_PROVIDERS.map((provider) => (
+                    <button
+                      key={provider}
+                      onClick={() => savePlayerProvider(provider)}
+                      disabled={providerSaving}
+                      className={cn(
+                        "relative rounded-full px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60",
+                        playerProvider === provider
+                          ? "text-accent-foreground"
+                          : "text-muted hover:text-foreground",
+                      )}
+                    >
+                      {playerProvider === provider && (
+                        <motion.span
+                          layoutId="player-provider"
+                          className="absolute inset-0 -z-10 rounded-full bg-accent"
+                          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                        />
+                      )}
+                      {PLAYER_PROVIDER_LABELS[provider]}
+                    </button>
+                  ))}
+                </div>
+                {providerError && (
+                  <p className="mt-1 max-w-sm text-xs text-red-400">{providerError}</p>
+                )}
               </div>
             </div>
           </div>
@@ -296,6 +350,8 @@ export default function AdminPage() {
             ))
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* suspend modal */}
@@ -381,10 +437,11 @@ function Stat({
     green: "text-emerald-400",
     red: "text-red-400",
   };
+  const n = useCountUp(value);
   return (
-    <div className="rounded-2xl border border-border bg-surface/40 p-4">
+    <div className="rounded-2xl border border-border bg-surface/40 p-4 transition-colors hover:border-accent/40">
       <div className={cn("mb-2", tones[tone])}>{icon}</div>
-      <p className="font-display text-3xl font-bold">{value}</p>
+      <p className="font-display text-3xl font-bold tabular-nums">{n}</p>
       <p className="text-xs text-muted">{label}</p>
     </div>
   );

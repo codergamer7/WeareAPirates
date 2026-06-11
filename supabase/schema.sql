@@ -67,6 +67,23 @@ create table if not exists public.user_lists (
 create index if not exists user_lists_user_idx
   on public.user_lists (user_id, list_type, created_at desc);
 
+-- "Remind me" — upcoming releases / next episodes the user wants flagged.
+create table if not exists public.reminders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  media_type text not null check (media_type in ('movie', 'tv')),
+  tmdb_id integer not null,
+  title text,
+  poster_path text,
+  backdrop_path text,
+  air_date date,
+  label text,
+  created_at timestamptz not null default now(),
+  unique (user_id, media_type, tmdb_id)
+);
+create index if not exists reminders_user_idx
+  on public.reminders (user_id, air_date);
+
 -- ---------- New-user trigger ----------
 create or replace function public.handle_new_user()
 returns trigger
@@ -107,6 +124,7 @@ alter table public.profiles enable row level security;
 alter table public.app_settings enable row level security;
 alter table public.watch_progress enable row level security;
 alter table public.user_lists enable row level security;
+alter table public.reminders enable row level security;
 
 -- profiles: read own row; update only display_name / avatar_url on own row.
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -127,6 +145,11 @@ drop policy if exists "lists_all_own" on public.user_lists;
 create policy "lists_all_own" on public.user_lists
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+-- reminders: full CRUD on own rows.
+drop policy if exists "reminders_all_own" on public.reminders;
+create policy "reminders_all_own" on public.reminders
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 -- ---------- Grants ----------
 -- Users cannot change their own role/status/suspension_note (that's admin-only,
 -- done via the service-role key). Restrict updatable columns to safe ones.
@@ -136,6 +159,7 @@ grant select on public.app_settings to authenticated;
 grant update (display_name, avatar_url) on public.profiles to authenticated;
 grant select, insert, update, delete on public.watch_progress to authenticated;
 grant select, insert, update, delete on public.user_lists to authenticated;
+grant select, insert, update, delete on public.reminders to authenticated;
 
 -- ---------- Realtime (live suspension/approval) ----------
 alter table public.profiles replica identity full;

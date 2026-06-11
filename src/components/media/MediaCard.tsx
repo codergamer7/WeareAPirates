@@ -48,7 +48,7 @@ export function MediaCard({ item, progress }: Props) {
   return (
     <div className="group/card relative w-[150px] shrink-0 sm:w-[172px]">
       <Link href={`/${kind}/${item.id}`} className="block">
-        <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border bg-surface-2 shadow-md transition-[transform,box-shadow] duration-300 group-hover/card:-translate-y-1 group-hover/card:shadow-[0_12px_26px_rgba(var(--shadow-color),0.32)] group-hover/card:ring-1 group-hover/card:ring-accent/50">
+        <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border bg-surface-2 shadow-md transition-[transform,box-shadow] duration-300 group-hover/card:-translate-y-1 group-hover/card:shadow-[0_12px_26px_rgba(var(--shadow-color),0.32)] group-hover/card:ring-1 group-hover/card:ring-accent/50 group-active/card:scale-[0.98]">
           {poster ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -65,6 +65,9 @@ export function MediaCard({ item, progress }: Props) {
 
           {/* hover gradient + actions */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover/card:opacity-100" />
+
+          {/* sheen sweep */}
+          <span className="card-sheen group-hover/card:[transform:translateX(130%)]" />
 
           {rating && (
             <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-accent-bright">

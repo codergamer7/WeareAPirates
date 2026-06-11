@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { LogOut, Search, Settings, Shield, User as UserIcon } from "lucide-react";
+import { Clapperboard, LogOut, Search, Settings, Shield, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/nav/ThemeToggle";
@@ -34,7 +34,7 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // "/" opens search anywhere
+  // "/" opens search anywhere; mobile bottom-nav dispatches a custom event too
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "/" && !/input|textarea/i.test((e.target as HTMLElement)?.tagName)) {
@@ -42,8 +42,13 @@ export function Navbar() {
         setSearchOpen(true);
       }
     };
+    const onSearch = () => setSearchOpen(true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("calypso:search", onSearch);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("calypso:search", onSearch);
+    };
   }, []);
 
   const initial = (profile?.display_name || profile?.email || "?")
@@ -136,6 +141,9 @@ export function Navbar() {
                     <div className="my-1 h-px bg-border" />
                     <MenuItem href="/account" icon={<UserIcon className="h-4 w-4" />}>
                       Account & Lists
+                    </MenuItem>
+                    <MenuItem href="/party" icon={<Clapperboard className="h-4 w-4" />}>
+                      Watch Party
                     </MenuItem>
                     <MenuItem href="/settings" icon={<Settings className="h-4 w-4" />}>
                       Settings

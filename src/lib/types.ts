@@ -58,3 +58,16 @@ export interface UserListItem {
   poster_path: string | null;
   created_at: string;
 }
+
+export interface Reminder {
+  id: string;
+  user_id: string;
+  media_type: MediaType;
+  tmdb_id: number;
+  title: string | null;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  air_date: string | null; // YYYY-MM-DD of the thing being awaited
+  label: string | null; // e.g. "S2 · E5" or "In theaters"
+  created_at: string;
+}
