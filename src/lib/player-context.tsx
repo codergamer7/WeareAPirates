@@ -21,6 +21,9 @@ interface PlayerCtx {
   // true once a personal choice or the admin default has resolved
   hasOverride: boolean;
   resetToDefault: () => void;
+  // bump to force the player iframe to remount (reload the current source)
+  reloadNonce: number;
+  reloadPlayer: () => void;
 }
 
 const Ctx = createContext<PlayerCtx | null>(null);
@@ -31,6 +34,7 @@ const Ctx = createContext<PlayerCtx | null>(null);
 export function PlayerPreferenceProvider({ children }: { children: React.ReactNode }) {
   const [provider, setProviderState] = useState<PlayerProvider>(DEFAULT_PLAYER_PROVIDER);
   const [hasOverride, setHasOverride] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   // Fetch the admin's global default (used only when the user hasn't overridden).
   const loadGlobalDefault = useCallback(() => {
@@ -77,8 +81,19 @@ export function PlayerPreferenceProvider({ children }: { children: React.ReactNo
     loadGlobalDefault();
   }, [loadGlobalDefault]);
 
+  const reloadPlayer = useCallback(() => setReloadNonce((n) => n + 1), []);
+
   return (
-    <Ctx.Provider value={{ provider, setProvider, hasOverride, resetToDefault }}>
+    <Ctx.Provider
+      value={{
+        provider,
+        setProvider,
+        hasOverride,
+        resetToDefault,
+        reloadNonce,
+        reloadPlayer,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );
