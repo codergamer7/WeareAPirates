@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider, themeBootScript } from "@/lib/theme-context";
 import { SubtitleProvider } from "@/lib/subtitle-context";
 import { AuthProvider } from "@/lib/auth-context";
+import { PlayerPreferenceProvider } from "@/lib/player-context";
 import { AppFrame } from "@/components/AppFrame";
 import { SITE_NAME, SITE_TAGLINE } from "@/lib/config";
 
@@ -41,7 +42,9 @@ export default function RootLayout({
         <ThemeProvider>
           <SubtitleProvider>
             <AuthProvider>
-              <AppFrame>{children}</AppFrame>
+              <PlayerPreferenceProvider>
+                <AppFrame>{children}</AppFrame>
+              </PlayerPreferenceProvider>
             </AuthProvider>
           </SubtitleProvider>
         </ThemeProvider>

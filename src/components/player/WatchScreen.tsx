@@ -12,6 +12,7 @@ import { getProgressFor } from "@/lib/lists";
 import { Logo } from "@/components/ui/Logo";
 import { Splash } from "@/components/auth/StatusOverlays";
 import { VidkingPlayer } from "@/components/player/VidkingPlayer";
+import { PlayerSwitcher } from "@/components/player/PlayerSwitcher";
 import { SubtitleOverlay } from "@/components/player/SubtitleOverlay";
 import { useSubs } from "@/lib/subtitle-context";
 
@@ -135,6 +136,8 @@ export function WatchScreen({ kind, id, season, episode }: Props) {
                 episode={episode}
               />
             </VidkingPlayer>
+
+            <PlayerSwitcher />
 
             {resume > 30 && (
               <p className="mt-2 text-xs text-accent">

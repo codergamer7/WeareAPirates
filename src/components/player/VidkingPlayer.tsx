@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   ACCENT_HEX,
   VIDKING_BASE,
@@ -8,11 +8,8 @@ import {
   VIDSYNC_BASE,
   type MediaType,
 } from "@/lib/config";
-import {
-  DEFAULT_PLAYER_PROVIDER,
-  isPlayerProvider,
-  type PlayerProvider,
-} from "@/lib/player-provider";
+import { type PlayerProvider } from "@/lib/player-provider";
+import { usePlayerPreference } from "@/lib/player-context";
 import { useAuth } from "@/lib/auth-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { upsertProgress } from "@/lib/lists";
@@ -55,20 +52,7 @@ export function VidkingPlayer({
 }: Props) {
   const { user } = useAuth();
   const lastSaved = useRef(0);
-  const [provider, setProvider] = useState<PlayerProvider>(DEFAULT_PLAYER_PROVIDER);
-
-  useEffect(() => {
-    let on = true;
-    fetch("/api/player-provider")
-      .then((res) => res.json())
-      .then((data) => {
-        if (on && isPlayerProvider(data.provider)) setProvider(data.provider);
-      })
-      .catch(() => undefined);
-    return () => {
-      on = false;
-    };
-  }, []);
+  const { provider } = usePlayerPreference();
 
   const src = buildEmbedSrc({
     provider,
