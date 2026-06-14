@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Loader2, MonitorPlay, RefreshCw, SkipForward, TriangleAlert } from "lucide-react";
 import {
   ACCENT_HEX,
+  MEGAPLAY_BASE,
+  TRYEMBED_BASE,
   TWOEMBED_BASE,
   VIDKING_BASE,
   VIDLINK_BASE,
@@ -19,6 +21,30 @@ import { usePlayerPreference } from "@/lib/player-context";
 import { useAuth } from "@/lib/auth-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { upsertProgress } from "@/lib/lists";
+import type { AnimeAudio } from "@/lib/anime";
+
+// Dedicated anime servers — kept entirely separate from the movie/series
+// providers. MegaPlay is MAL-keyed, TryEmbed is AniList-keyed; both do sub/dub.
+export type AnimeServer = "megaplay" | "tryembed";
+
+export interface AnimeEmbed {
+  malId: number | null;
+  anilistId: number | null;
+  episodeNumber: number;
+  audio: AnimeAudio;
+  server?: AnimeServer; // preferred anime server (user-chosen)
+}
+
+type ActiveProvider = PlayerProvider | AnimeServer;
+
+const ANIME_LABELS: Record<AnimeServer, string> = {
+  megaplay: "MegaPlay",
+  tryembed: "TryEmbed",
+};
+
+function providerLabel(p: ActiveProvider): string {
+  return p in ANIME_LABELS ? ANIME_LABELS[p as AnimeServer] : PLAYER_PROVIDER_LABELS[p as PlayerProvider];
+}
 
 interface Props {
   mediaType: MediaType;
@@ -30,6 +56,7 @@ interface Props {
   posterPath: string | null;
   backdropPath: string | null;
   glow?: boolean;
+  anime?: AnimeEmbed | null;
   children?: React.ReactNode;
 }
 
@@ -59,17 +86,32 @@ export function VidkingPlayer({
   posterPath,
   backdropPath,
   glow,
+  anime,
   children,
 }: Props) {
   const { user } = useAuth();
   const lastSaved = useRef(0);
   const { provider, reloadNonce, reloadPlayer, setProvider } = usePlayerPreference();
 
-  // Failover order: the user's/admin's provider first, then the rest.
-  const order = useMemo(
-    () => [provider, ...PLAYER_PROVIDERS.filter((p) => p !== provider)],
-    [provider],
-  );
+  // Anime uses ONLY the anime servers; movies/series use ONLY the general
+  // providers — the two sets never mix.
+  const isAnimeMode = !!(anime && (anime.malId || anime.anilistId));
+
+  const order = useMemo<ActiveProvider[]>(() => {
+    if (anime && (anime.malId || anime.anilistId)) {
+      const animeServers: ActiveProvider[] = [];
+      if (anime.malId) animeServers.push("megaplay");
+      if (anime.anilistId) animeServers.push("tryembed");
+      const pref = anime.server;
+      return pref && animeServers.includes(pref)
+        ? [pref, ...animeServers.filter((s) => s !== pref)]
+        : animeServers;
+    }
+    return [provider, ...PLAYER_PROVIDERS.filter((p) => p !== provider)];
+  }, [provider, anime?.malId, anime?.anilistId, anime?.server]);
+
+  // Servers shown in the picker.
+  const servers: ActiveProvider[] = isAnimeMode ? order : [...PLAYER_PROVIDERS];
 
   const [attempt, setAttempt] = useState(0);
   const activeProvider = order[Math.min(attempt, order.length - 1)];
@@ -83,7 +125,7 @@ export function VidkingPlayer({
   const loadedRef = useRef(false);
   const readyRef = useRef(false);
   const attemptRef = useRef(0);
-  const orderRef = useRef(order);
+  const orderRef = useRef<ActiveProvider[]>(order);
   orderRef.current = order;
   attemptRef.current = attempt;
 
@@ -94,6 +136,7 @@ export function VidkingPlayer({
     season,
     episode,
     resumeSeconds,
+    anime,
   });
 
   // Restart the failover cycle when the title or the chosen starting provider
@@ -102,14 +145,14 @@ export function VidkingPlayer({
     setAttempt(0);
     setExhausted(false);
     setNote(null);
-  }, [provider, tmdbId, season, episode]);
+  }, [provider, tmdbId, season, episode, anime?.malId, anime?.anilistId, anime?.server]);
 
   // Advance to the next provider in the order, or give up if exhausted.
   function advance(reason: string) {
     const ord = orderRef.current;
     const a = attemptRef.current;
     if (a + 1 < ord.length) {
-      setNote(`${reason} — switching to ${PLAYER_PROVIDER_LABELS[ord[a + 1]]}…`);
+      setNote(`${reason} — switching to ${providerLabel(ord[a + 1])}…`);
       setAttempt(a + 1);
     } else {
       setExhausted(true);
@@ -121,23 +164,25 @@ export function VidkingPlayer({
   useEffect(() => {
     setLoaded(false);
     setReady(false);
+    setHint(false);
     loadedRef.current = false;
     readyRef.current = false;
     const ap = activeProvider;
 
+    // Auto-skip a server that never loads at all (genuinely unreachable).
     const loadTimer = setTimeout(() => {
       if (!loadedRef.current) advance("Server unreachable");
     }, LOAD_TIMEOUT);
-    // Vidking reliably emits playback events; if it loaded but never plays,
-    // it's a dead source. Other providers we don't second-guess on silence.
-    const beatTimer = setTimeout(() => {
-      if (loadedRef.current && !readyRef.current && ap === "vidking")
-        advance("No playback");
+    // Vidking emits playback events; if it loaded but we hear nothing it may be
+    // dead — but it could just as easily be paused awaiting a click, so we only
+    // show a gentle hint and NEVER auto-switch a player that already loaded.
+    const hintTimer = setTimeout(() => {
+      if (loadedRef.current && !readyRef.current && ap === "vidking") setHint(true);
     }, HEARTBEAT_TIMEOUT);
 
     return () => {
       clearTimeout(loadTimer);
-      clearTimeout(beatTimer);
+      clearTimeout(hintTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, reloadNonce]);
@@ -180,6 +225,7 @@ export function VidkingPlayer({
         readyRef.current = true;
         setReady(true);
         setNote(null);
+        setHint(false);
         setExhausted(false);
       }
       const { event, currentTime, duration } = evt.data;
@@ -215,11 +261,17 @@ export function VidkingPlayer({
     reloadPlayer();
   }
 
-  function chooseServer(p: PlayerProvider) {
+  function chooseServer(p: ActiveProvider) {
     setMenuOpen(false);
     setExhausted(false);
     setNote(null);
-    setProvider(p); // persists their pick + resets the cycle to start here
+    if (isAnimeMode) {
+      // anime order is fixed; select locally
+      const idx = order.indexOf(p);
+      if (idx >= 0) setAttempt(idx);
+    } else if (p !== "megaplay" && p !== "tryembed") {
+      setProvider(p); // persists their pick + resets the cycle to start here
+    }
   }
 
   return (
@@ -248,7 +300,7 @@ export function VidkingPlayer({
         {/* top control strip — server picker (auto-hides; bottom stays clear
             for the embed's own controls) */}
         {!exhausted && (
-          <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-end gap-2 bg-gradient-to-b from-black/55 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-end gap-2 bg-gradient-to-b from-black/55 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               onClick={nextServer}
               className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur transition-colors hover:bg-white/20"
@@ -261,7 +313,7 @@ export function VidkingPlayer({
                 className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur transition-colors hover:bg-white/20"
               >
                 <MonitorPlay className="h-3.5 w-3.5 text-accent" />
-                {PLAYER_PROVIDER_LABELS[activeProvider]}
+                {providerLabel(activeProvider)}
                 <span className="text-white/50">
                   {Math.min(attempt + 1, order.length)}/{order.length}
                 </span>
@@ -269,15 +321,15 @@ export function VidkingPlayer({
               {menuOpen && (
                 <div className="absolute right-0 top-10 w-44 overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-2xl">
                   <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-                    Video server
+                    {isAnimeMode ? "Anime server" : "Video server"}
                   </p>
-                  {PLAYER_PROVIDERS.map((p) => (
+                  {servers.map((p) => (
                     <button
                       key={p}
                       onClick={() => chooseServer(p)}
                       className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-foreground/5"
                     >
-                      {PLAYER_PROVIDER_LABELS[p]}
+                      {providerLabel(p)}
                       {p === activeProvider && <Check className="h-4 w-4 text-accent" />}
                     </button>
                   ))}
@@ -293,7 +345,7 @@ export function VidkingPlayer({
             <div className="text-center">
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-accent" />
               <p className="mt-3 text-sm text-white/80">
-                Loading {PLAYER_PROVIDER_LABELS[activeProvider]}…
+                Loading {providerLabel(activeProvider)}…
               </p>
             </div>
           </div>
@@ -306,6 +358,16 @@ export function VidkingPlayer({
               {note}
             </span>
           </div>
+        )}
+
+        {/* gentle "not playing?" hint — never auto-switches a loaded player */}
+        {hint && !ready && !exhausted && (
+          <button
+            onClick={nextServer}
+            className="absolute left-1/2 top-12 z-20 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/80 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur transition-colors hover:bg-black"
+          >
+            <SkipForward className="h-3.5 w-3.5 text-accent" /> Not playing? Try another server
+          </button>
         )}
 
         {/* all servers tried */}
@@ -328,13 +390,13 @@ export function VidkingPlayer({
                 >
                   <RefreshCw className="h-4 w-4" /> Retry all
                 </button>
-                {PLAYER_PROVIDERS.map((p) => (
+                {servers.map((p) => (
                   <button
                     key={p}
                     onClick={() => chooseServer(p)}
                     className="rounded-full border border-white/20 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:border-accent hover:text-accent"
                   >
-                    {PLAYER_PROVIDER_LABELS[p]}
+                    {providerLabel(p)}
                   </button>
                 ))}
               </div>
@@ -353,14 +415,27 @@ function buildEmbedSrc({
   season,
   episode,
   resumeSeconds,
+  anime,
 }: {
-  provider: PlayerProvider;
+  provider: ActiveProvider;
   mediaType: MediaType;
   tmdbId: number;
   season?: number;
   episode?: number;
   resumeSeconds: number;
+  anime?: AnimeEmbed | null;
 }) {
+  // ---- Anime-only servers ----
+  // MegaPlay: HiAnime library keyed by MAL id, sub/dub.
+  if (provider === "megaplay" && anime?.malId) {
+    return `${MEGAPLAY_BASE}/mal/${anime.malId}/${anime.episodeNumber}/${anime.audio}`;
+  }
+  // TryEmbed: AniList-keyed anime player, sub/dub.
+  if (provider === "tryembed" && anime?.anilistId) {
+    return `${TRYEMBED_BASE}/embed/anime/${anime.anilistId}/${anime.episodeNumber}/${anime.audio}`;
+  }
+
+  // ---- Movie / series servers ----
   if (provider === "vidsync") {
     const base =
       mediaType === "movie"
