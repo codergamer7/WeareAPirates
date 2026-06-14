@@ -16,6 +16,10 @@ export const VIDKING_BASE = "https://www.vidking.net/embed";
 export const VIDSYNC_BASE = "https://vidsync.xyz/embed";
 export const VIDLINK_BASE = "https://vidlink.pro";
 export const TWOEMBED_BASE = "https://www.2embed.cc";
+// Anime-only embeds (separate from the movie/series sources). Both support
+// sub & dub via the URL. MegaPlay is MAL-keyed; TryEmbed is AniList-keyed.
+export const MEGAPLAY_BASE = "https://megaplay.buzz/stream";
+export const TRYEMBED_BASE = "https://tryembed.us.cc";
 
 // True when the Supabase env vars are present, so the UI can show a friendly
 // "setup required" state instead of crashing before keys are pasted in.
