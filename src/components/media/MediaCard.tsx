@@ -8,8 +8,7 @@ import { img, type MediaType } from "@/lib/config";
 import { mediaDate, mediaKind, mediaTitle } from "@/lib/tmdb";
 import { yearOf, cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toggleList } from "@/lib/lists";
+import { useWatchlist } from "@/lib/watchlist-context";
 
 interface Props {
   item: TmdbItem;
@@ -19,7 +18,7 @@ interface Props {
 
 export function MediaCard({ item, progress }: Props) {
   const { user } = useAuth();
-  const [saved, setSaved] = useState(false);
+  const { isSaved, toggle } = useWatchlist();
   const [busy, setBusy] = useState(false);
 
   const kind: MediaType = mediaKind(item);
@@ -27,21 +26,19 @@ export function MediaCard({ item, progress }: Props) {
   const year = yearOf(mediaDate(item));
   const poster = img(item.poster_path, "w342");
   const rating = item.vote_average ? item.vote_average.toFixed(1) : null;
+  const saved = isSaved(kind, item.id);
 
   async function quickSave(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     if (!user || busy) return;
-    const sb = createSupabaseBrowserClient();
-    if (!sb) return;
     setBusy(true);
-    const now = await toggleList(
-      sb,
-      user.id,
-      { media_type: kind, tmdb_id: item.id, title, poster_path: item.poster_path },
-      "watchlist",
-    );
-    setSaved(now);
+    await toggle({
+      media_type: kind,
+      tmdb_id: item.id,
+      title,
+      poster_path: item.poster_path,
+    });
     setBusy(false);
   }
 

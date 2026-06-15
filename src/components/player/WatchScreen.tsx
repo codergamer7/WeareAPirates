@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Home, Languages, SkipBack, SkipForward } from "lucide-react";
 import type { MediaType } from "@/lib/config";
-import { getDetail, getSeason } from "@/lib/tmdb";
+import { getDetailLite, getSeason } from "@/lib/tmdb";
 import { cn } from "@/lib/utils";
 import { isAnimeDetail, resolveAnime, type AnimeAudio, type AnimeMap } from "@/lib/anime";
 import { useAuth } from "@/lib/auth-context";
@@ -59,14 +59,16 @@ export function WatchScreen({ kind, id, season, episode }: Props) {
     setReady(false);
     setAnimeMap(null);
     (async () => {
-      const detail = await getDetail(kind, id).catch(() => null);
+      const detail = await getDetailLite(kind, id).catch(() => null);
       if (!on) return;
       setD(detail);
 
-      // For anime, resolve the MAL id so vidlink can offer sub/dub.
+      // For anime, resolve this season's MAL/AniList ids (sub/dub players).
       const animeTitle = kind === "movie" ? detail?.title : detail?.name;
       if (detail && isAnimeDetail(detail) && animeTitle) {
-        resolveAnime(animeTitle).then((m) => on && setAnimeMap(m));
+        resolveAnime(animeTitle, kind === "movie" ? 1 : season ?? 1).then(
+          (m) => on && setAnimeMap(m),
+        );
       }
 
       if (kind === "tv" && season) {
@@ -104,12 +106,34 @@ export function WatchScreen({ kind, id, season, episode }: Props) {
   const detailHref = `/${kind}/${id}`;
 
   const isAnime = isAnimeDetail(d);
+
+  // Work out the episode number to send the anime player.
+  const requestedSeason = kind === "movie" ? 1 : season ?? 1;
+  const matchedSeason = animeMap?.matchedSeason ?? 1;
+  const perSeasonEpisode = kind === "movie" ? 1 : episode ?? 1;
+
+  // Fallback for continuous-numbering entries we couldn't resolve per-season:
+  // sum every prior numbered TMDB season so S2E9 (S1 = 24 eps) becomes ep 33.
+  const absoluteEpisode = (() => {
+    if (requestedSeason <= 1) return perSeasonEpisode;
+    const priorEps = ((d.seasons ?? []) as { season_number: number; episode_count: number }[])
+      .filter((s) => s.season_number >= 1 && s.season_number < requestedSeason)
+      .reduce((sum, s) => sum + (s.episode_count ?? 0), 0);
+    return priorEps + perSeasonEpisode;
+  })();
+
+  // If the resolver reached this exact season's own entry, its episodes restart
+  // at 1 → use the per-season number. Otherwise it fell back to an earlier entry
+  // that numbers episodes absolutely across seasons → use the absolute number.
+  const episodeNumber =
+    matchedSeason >= requestedSeason ? perSeasonEpisode : absoluteEpisode;
+
   const animeEmbed =
     isAnime && (animeMap?.malId || animeMap?.anilistId)
       ? {
           malId: animeMap.malId ?? null,
           anilistId: animeMap.anilistId ?? null,
-          episodeNumber: kind === "movie" ? 1 : episode ?? 1,
+          episodeNumber,
           audio,
           server: animeServer,
         }

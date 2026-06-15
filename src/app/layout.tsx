@@ -5,6 +5,7 @@ import { ThemeProvider, themeBootScript } from "@/lib/theme-context";
 import { SubtitleProvider } from "@/lib/subtitle-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { PlayerPreferenceProvider } from "@/lib/player-context";
+import { WatchlistProvider } from "@/lib/watchlist-context";
 import { AppFrame } from "@/components/AppFrame";
 import { SITE_NAME, SITE_TAGLINE } from "@/lib/config";
 
@@ -43,7 +44,9 @@ export default function RootLayout({
           <SubtitleProvider>
             <AuthProvider>
               <PlayerPreferenceProvider>
-                <AppFrame>{children}</AppFrame>
+                <WatchlistProvider>
+                  <AppFrame>{children}</AppFrame>
+                </WatchlistProvider>
               </PlayerPreferenceProvider>
             </AuthProvider>
           </SubtitleProvider>

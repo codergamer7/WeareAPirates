@@ -118,10 +118,14 @@ export default function HomePage() {
 
       // a familiar "Because you watched X" from your latest title
       const recent = history[0];
+      const recentTitle = recent.title?.trim();
       try {
         const r = await getRecommendations(recent.media_type, recent.tmdb_id);
         if (active && r.results.length)
-          setRecRow({ title: `Because you watched ${recent.title}`, items: r.results });
+          setRecRow({
+            title: recentTitle ? `Because you watched ${recentTitle}` : "More to watch",
+            items: r.results,
+          });
       } catch {}
     })();
     return () => {

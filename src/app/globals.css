@@ -105,7 +105,9 @@ body::before {
 }
 
 /* Slow-drifting aurora — its own compositor layer, transform-only animation so
-   it never repaints on scroll. */
+   it never repaints on scroll. Static (and lighter-blurred) by default; the
+   animated, layer-promoted version is reserved for capable desktops, since a
+   permanently `will-change`d 150%-viewport blur is VRAM-heavy on phones. */
 body::after {
   content: "";
   position: fixed;
@@ -115,10 +117,15 @@ body::after {
   background:
     radial-gradient(38rem 30rem at 22% 18%, var(--glow), transparent 62%),
     radial-gradient(34rem 28rem at 82% 28%, rgba(45, 212, 191, 0.12), transparent 60%);
-  filter: blur(60px);
+  filter: blur(40px);
   opacity: 0.5;
-  animation: auroraDrift 28s ease-in-out infinite;
-  will-change: transform;
+}
+@media (min-width: 768px) and (pointer: fine) {
+  body::after {
+    filter: blur(60px);
+    animation: auroraDrift 28s ease-in-out infinite;
+    will-change: transform;
+  }
 }
 
 ::selection {

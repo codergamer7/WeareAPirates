@@ -53,6 +53,12 @@ export const getDetail = (kind: MediaType, id: number | string) =>
     include_image_language: "en,null",
   });
 
+// Slim detail for the watch screen: only the ids + base fields the player needs
+// (title, seasons, external_ids for IMDB subs, anime-detection fields). Skips the
+// credits/recommendations/images bundle to keep the playback payload small.
+export const getDetailLite = (kind: MediaType, id: number | string) =>
+  tmdb<any>(`${kind}/${id}`, { append_to_response: "external_ids" });
+
 export const getSeason = (id: number | string, season: number) =>
   tmdb<any>(`tv/${id}/season/${season}`);
 

@@ -27,7 +27,10 @@ export function Hero({ items }: { items: TmdbItem[] }) {
   const item = slides[i];
   const kind: MediaType = mediaKind(item);
   const title = mediaTitle(item);
-  const playHref = kind === "movie" ? `/watch/movie/${item.id}` : `/tv/${item.id}`;
+  // "Play now" should actually play: movies go straight to the player; series
+  // start at S1E1 (the overwhelming default) rather than the detail page.
+  const playHref =
+    kind === "movie" ? `/watch/movie/${item.id}` : `/watch/tv/${item.id}/1/1`;
 
   async function openTrailer() {
     if (trailerLoading) return;

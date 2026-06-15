@@ -21,6 +21,7 @@ import { img, type MediaType } from "@/lib/config";
 import { getDetail } from "@/lib/tmdb";
 import { cn, prettyDate, runtime as fmtRuntime, yearOf } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
+import { useWatchlist } from "@/lib/watchlist-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   getListStatus,
@@ -52,6 +53,7 @@ function certOf(kind: MediaType, d: any): string | null {
 
 export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
   const { user } = useAuth();
+  const watchlist = useWatchlist();
   const [d, setD] = useState<any>(null);
   const [imdb, setImdb] = useState<string | null>(null);
   const [status, setStatus] = useState<Record<ListType, boolean>>({
@@ -148,6 +150,18 @@ export function DetailView({ kind, id }: { kind: MediaType; id: string }) {
 
   async function toggle(listType: ListType) {
     if (!user) return;
+    // Route the watchlist through the shared context so home/browse cards stay
+    // in sync; saved/favorite remain title-local.
+    if (listType === "watchlist") {
+      const now = await watchlist.toggle({
+        media_type: kind,
+        tmdb_id: Number(id),
+        title,
+        poster_path: d.poster_path,
+      });
+      setStatus((s) => ({ ...s, watchlist: now }));
+      return;
+    }
     const sb = createSupabaseBrowserClient();
     if (!sb) return;
     const now = await toggleList(

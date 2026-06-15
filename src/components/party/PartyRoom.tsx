@@ -89,6 +89,7 @@ export function PartyRoom({ code }: { code: string }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TmdbItem[]>([]);
   const [searching, setSearching] = useState(false);
+  const [episodeMax, setEpisodeMax] = useState(0); // episodes in the active season (0 = unknown)
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const nowPlayingRef = useRef<NowPlaying | null>(null);
@@ -217,6 +218,7 @@ export function PartyRoom({ code }: { code: string }) {
     const kind = mediaKind(item);
     const title = mediaTitle(item);
     if (kind === "movie") {
+      setEpisodeMax(0);
       setContent({
         mediaType: "movie",
         tmdbId: item.id,
@@ -229,15 +231,15 @@ export function PartyRoom({ code }: { code: string }) {
     } else {
       // start at the first real season
       const detail = await getDetail("tv", item.id).catch(() => null);
-      const firstSeason =
-        detail?.seasons?.find(
-          (s: { season_number: number; episode_count: number }) =>
-            s.season_number >= 1 && s.episode_count > 0,
-        )?.season_number ?? 1;
+      const firstSeason = detail?.seasons?.find(
+        (s: { season_number: number; episode_count: number }) =>
+          s.season_number >= 1 && s.episode_count > 0,
+      );
+      setEpisodeMax(firstSeason?.episode_count ?? 0);
       setContent({
         mediaType: "tv",
         tmdbId: item.id,
-        season: firstSeason,
+        season: firstSeason?.season_number ?? 1,
         episode: 1,
         title,
         posterPath: item.poster_path,
@@ -250,7 +252,9 @@ export function PartyRoom({ code }: { code: string }) {
 
   function stepEpisode(delta: number) {
     if (!nowPlaying || nowPlaying.mediaType !== "tv") return;
-    const episode = Math.max(1, nowPlaying.episode + delta);
+    let episode = Math.max(1, nowPlaying.episode + delta);
+    if (episodeMax > 0) episode = Math.min(episodeMax, episode);
+    if (episode === nowPlaying.episode) return; // already at the boundary
     setContent({ ...nowPlaying, episode });
   }
 

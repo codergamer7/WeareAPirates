@@ -248,6 +248,10 @@ export function VidkingPlayer({
   }
 
   function nextServer() {
+    if (order.length < 2) {
+      reloadPlayer(); // only one source — just reload it
+      return;
+    }
     setExhausted(false);
     setNote(null);
     setAttempt((a) => (a + 1) % order.length);
@@ -300,12 +304,14 @@ export function VidkingPlayer({
             for the embed's own controls) */}
         {!exhausted && (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-end gap-2 bg-gradient-to-b from-black/55 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
-            <button
-              onClick={nextServer}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur transition-colors hover:bg-white/20"
-            >
-              <SkipForward className="h-3.5 w-3.5" /> Next server
-            </button>
+            {order.length > 1 && (
+              <button
+                onClick={nextServer}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur transition-colors hover:bg-white/20"
+              >
+                <SkipForward className="h-3.5 w-3.5" /> Next server
+              </button>
+            )}
             <div className="relative">
               <button
                 onClick={() => setMenuOpen((m) => !m)}
@@ -439,7 +445,7 @@ function buildEmbedSrc({
     // 2embed.cc: movie -> /embed/{tmdb}; tv -> /embedtv/{tmdb}&s=&e=
     return mediaType === "movie"
       ? `${TWOEMBED_BASE}/embed/${tmdbId}`
-      : `${TWOEMBED_BASE}/embedtv/${tmdbId}&s=${season ?? 1}&e=${episode ?? 1}`;
+      : `${TWOEMBED_BASE}/embedtv/${tmdbId}?s=${season ?? 1}&e=${episode ?? 1}`;
   }
 
   if (provider === "vidlink") {
