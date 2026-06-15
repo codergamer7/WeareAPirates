@@ -9,7 +9,6 @@ import {
   TWOEMBED_BASE,
   VIDKING_BASE,
   VIDLINK_BASE,
-  VIDSYNC_BASE,
   type MediaType,
 } from "@/lib/config";
 import {
@@ -436,20 +435,6 @@ function buildEmbedSrc({
   }
 
   // ---- Movie / series servers ----
-  if (provider === "vidsync") {
-    const base =
-      mediaType === "movie"
-        ? `${VIDSYNC_BASE}/movie/${tmdbId}`
-        : `${VIDSYNC_BASE}/tv/${tmdbId}/${season ?? 1}/${episode ?? 1}`;
-    const p = new URLSearchParams({ autoPlay: "true", theme: ACCENT_HEX });
-    if (resumeSeconds > 5) p.set("startTime", String(Math.floor(resumeSeconds)));
-    if (mediaType === "tv") {
-      p.set("nextButton", "true");
-      p.set("autoNext", "true");
-    }
-    return `${base}?${p.toString()}`;
-  }
-
   if (provider === "2embed") {
     // 2embed.cc: movie -> /embed/{tmdb}; tv -> /embedtv/{tmdb}&s=&e=
     return mediaType === "movie"
