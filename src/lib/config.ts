@@ -13,7 +13,6 @@ export const img = (path: string | null | undefined, size: string = "w500") =>
 
 // Embed player bases.
 export const VIDKING_BASE = "https://www.vidking.net/embed";
-export const VIDSYNC_BASE = "https://vidsync.xyz/embed";
 export const VIDLINK_BASE = "https://vidlink.pro";
 export const TWOEMBED_BASE = "https://www.2embed.cc";
 // Anime-only embeds (separate from the movie/series sources). Both support

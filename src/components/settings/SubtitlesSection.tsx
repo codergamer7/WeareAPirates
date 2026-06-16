@@ -114,7 +114,7 @@ export function SubtitlesSection() {
           />
           <ToggleRow
             label="Auto-detect"
-            hint="Automatically load subtitles in your default language"
+            hint="Auto-load subtitles in your default language — works on the Vidking player only"
             value={prefs.autoDetect}
             onChange={(v) => update({ autoDetect: v })}
           />
