@@ -56,16 +56,22 @@ async function anilist(
   }
 }
 
-// The "next season" of an entry is its TV-format SEQUEL (ignore OVA/movie sequels).
-function nextSeasonId(media: Media | null): number | null {
-  const edges = media?.relations?.edges ?? [];
-  const seq = edges.find(
-    (e) =>
-      e.relationType === "SEQUEL" &&
-      e.node?.type === "ANIME" &&
-      ["TV", "TV_SHORT", "ONA"].includes(e.node?.format ?? ""),
+const SEASON_FORMATS = ["TV", "TV_SHORT", "ONA"];
+
+// A broadcast cour counts as a "season"; movies/OVAs/specials do not.
+function isSeasonFormat(media: Media | null): boolean {
+  return SEASON_FORMATS.includes(media?.format ?? "");
+}
+
+// The next entry along the SEQUEL chain. Prefer a TV-type sequel, but fall back
+// to ANY anime sequel so we can walk THROUGH an interleaved movie/OVA (e.g. Demon
+// Slayer's Mugen Train film sits between S1 and S2) and still reach the next cour.
+function sequelId(media: Media | null): number | null {
+  const sequels = (media?.relations?.edges ?? []).filter(
+    (e) => e.relationType === "SEQUEL" && e.node?.type === "ANIME",
   );
-  return seq?.node?.id ?? null;
+  const tv = sequels.find((e) => SEASON_FORMATS.includes(e.node?.format ?? ""));
+  return (tv ?? sequels[0])?.node?.id ?? null;
 }
 
 export async function GET(req: NextRequest) {
@@ -81,28 +87,36 @@ export async function GET(req: NextRequest) {
   };
   if (!title) return NextResponse.json(fail, { status: 400 });
 
-  let media = await anilist(SEARCH_QUERY, { search: title });
-  if (!media) return NextResponse.json(fail);
+  const base = await anilist(SEARCH_QUERY, { search: title });
+  if (!base) return NextResponse.json(fail);
 
-  // Walk SEQUEL edges season-by-season until we reach the requested season or
-  // the chain ends. `matched` records how far we actually got.
+  // Walk the SEQUEL chain, counting only TV cours as seasons (walking through any
+  // movies/OVAs in between). `seasonEntry` tracks the last real season we landed
+  // on, `matched` how many seasons deep we reached.
+  let cursor = base;
+  let seasonEntry = base;
   let matched = 1;
   let guard = 0;
-  while (matched < want && guard < 12) {
-    const nextId = nextSeasonId(media);
-    if (!nextId) break;
+  const seen = new Set<number>([base.id]);
+  while (matched < want && guard < 16) {
+    const nextId = sequelId(cursor);
+    if (!nextId || seen.has(nextId)) break;
+    seen.add(nextId);
     const next = await anilist(BY_ID_QUERY, { id: nextId });
     if (!next) break;
-    media = next;
-    matched++;
+    cursor = next;
     guard++;
+    if (isSeasonFormat(next)) {
+      matched++;
+      seasonEntry = next;
+    }
   }
 
   return NextResponse.json({
-    anilistId: media.id ?? null,
-    malId: media.idMal ?? null,
-    episodes: media.episodes ?? null,
-    format: media.format ?? null,
+    anilistId: seasonEntry.id ?? null,
+    malId: seasonEntry.idMal ?? null,
+    episodes: seasonEntry.episodes ?? null,
+    format: seasonEntry.format ?? null,
     matchedSeason: matched,
   });
 }
